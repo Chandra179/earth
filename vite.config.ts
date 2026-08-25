@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 const proxy = {
+  "/api": {
+    target: process.env.BACKEND_URL || "http://localhost:8090",
+    changeOrigin: true,
+  },
+
   "/proxy/giss": {
     target: "https://data.giss.nasa.gov",
     changeOrigin: true,

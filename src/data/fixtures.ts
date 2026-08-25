@@ -92,45 +92,6 @@ function buildMonths(): ClimateDataset {
   return { points: pts, projection: [], threshold: false };
 }
 
-function buildWeeks(): ClimateDataset {
-  const rng = mulberry32(777001);
-  const pts: ClimatePoint[] = [];
-  const daily: ClimatePoint[] = [];
-  const end = new Date(2026, 7, 23);
-  const N = 120;
-  for (let i = N - 1; i >= 0; i--) {
-    const d = new Date(end.getFullYear(), end.getMonth(), end.getDate() - i);
-    const yFrac = d.getFullYear() + d.getMonth() / 12 + d.getDate() / 365;
-    const seasonal = Math.sin(2 * Math.PI * ((d.getMonth() + 1 - 6.5) / 12)) * 0.6;
-    const co2Season = Math.cos(2 * Math.PI * ((d.getMonth() + 1 - 5) / 12)) * 2.8;
-    daily.push({
-      label: d.toLocaleString("en", { month: "short" }) + " " + d.getDate(),
-      year: d.getFullYear(),
-      tempAnomalyC: +(tempAnnual(yFrac) + seasonal + (rng() - 0.5) * 0.4).toFixed(2),
-      co2Ppm: +(co2Annual(yFrac) + co2Season + (rng() - 0.5) * 1.6).toFixed(2),
-      seaLevelMmVs2000: +slAtYear(yFrac).toFixed(2),
-      event: null,
-    });
-  }
-  function ma(arr: ClimatePoint[], f: "tempAnomalyC" | "co2Ppm" | "seaLevelMmVs2000") {
-    return arr.reduce((s, p) => s + p[f], 0) / arr.length;
-  }
-  for (let k = 0; k < N; k++) {
-    const win = daily.slice(Math.max(0, k - 3), Math.min(N, k + 4));
-    pts.push({
-      label: daily[k].label,
-      year: daily[k].year,
-      tempAnomalyC: +ma(win, "tempAnomalyC").toFixed(2),
-      co2Ppm: +ma(win, "co2Ppm").toFixed(2),
-      seaLevelMmVs2000: +ma(win, "seaLevelMmVs2000").toFixed(2),
-      dailyTempAnomalyC: daily[k].tempAnomalyC,
-      event: null,
-    });
-  }
-  pts[110].event = "Marine heatwave detected";
-  pts[104].event = "Methane plume · satellite alert";
-  return { points: pts, projection: [], threshold: false, daily: true };
-}
 
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
@@ -143,8 +104,7 @@ function deepFreeze<T>(value: T): T {
 export const fixtureDatasets = deepFreeze({
   years: buildYears(),
   months: buildMonths(),
-  weeks: buildWeeks(),
-} satisfies Record<"weeks" | "months" | "years", ClimateDataset>);
+} satisfies Record<"months" | "years", ClimateDataset>);
 
 export const fixtureKpis = deepFreeze({
   co2Ppm: 428.2,

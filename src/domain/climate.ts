@@ -1,4 +1,4 @@
-export type TemporalMode = "weeks" | "months" | "years";
+export type TemporalMode = "months" | "years";
 
 export type ClimatePoint = {
   label: string;

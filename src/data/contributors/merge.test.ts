@@ -7,7 +7,6 @@ function base(): ClimateSnapshot {
     datasets: {
       years: { points: [], projection: [], threshold: true },
       months: { points: [], projection: [], threshold: false },
-      weeks: { points: [], projection: [], threshold: false },
     },
     kpis: { co2Ppm: 400, ch4Ppb: 1800, tempAnomalyC: 1, latestMonthLabel: "", seaLevelMmVs2000: 10, warmingCvsPreIndustrial: 1.2 },
     pollutants: [
