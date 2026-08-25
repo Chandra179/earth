@@ -132,31 +132,39 @@ function buildWeeks(): ClimateDataset {
   return { points: pts, projection: [], threshold: false, daily: true };
 }
 
-export const fixtureDatasets: Record<"weeks" | "months" | "years", ClimateDataset> = {
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const v of Object.values(value as Record<string, unknown>)) deepFreeze(v);
+  }
+  return value;
+}
+
+export const fixtureDatasets = deepFreeze({
   years: buildYears(),
   months: buildMonths(),
   weeks: buildWeeks(),
-};
+} satisfies Record<"weeks" | "months" | "years", ClimateDataset>);
 
-export const fixtureKpis: Kpis = {
+export const fixtureKpis = deepFreeze({
   co2Ppm: 428.2,
   ch4Ppb: 1930,
   tempAnomalyC: 1.92,
   latestMonthLabel: "",
   seaLevelMmVs2000: 98.5,
   warmingCvsPreIndustrial: 1.42,
-};
+} satisfies Kpis);
 
-export const fixturePollutants: Pollutant[] = [
+export const fixturePollutants = deepFreeze([
   { name: "Methane (CH₄)", share: 0.46, trend: "up", color: "var(--accent)", note: "1,930 ppb · livestock & leaks" },
   { name: "Nitrous Oxide (N₂O)", share: 0.21, trend: "up", color: "var(--warn)", note: "~337 ppb · fertilizer soils" },
   { name: "HFCs", share: 0.12, trend: "up", color: "var(--danger)", note: "fastest-growing F-gas class" },
   { name: "SF₆", share: 0.07, trend: "up", color: "var(--fg-2)", note: "23,500× GWP · grid switchgear", termWord: "GWP", termDef: "Global warming potential — how much heat a gas traps vs. the same mass of CO₂ over 100 years." },
   { name: "Black Carbon (soot)", share: 0.09, trend: "flat", color: "var(--fg)", note: "short-lived · Arctic forcing" },
   { name: "Ground-level O₃", share: 0.05, trend: "flat", color: "var(--muted)", note: "secondary · precursor-driven" },
-];
+] satisfies Pollutant[]);
 
-export const fixtureRegions: Record<RegionName, RegionMetric[]> = {
+const regionData = {
   Global: [
     { name: "Global mean", metric: "+1.42°C", sub: "land+ocean anomaly", badge: "critical", badgeText: "critical" },
     { name: "Sea level", metric: "+98.5 mm", sub: "rise vs. 2000 baseline", badge: "elevated", badgeText: "elevated" },
@@ -189,6 +197,8 @@ export const fixtureRegions: Record<RegionName, RegionMetric[]> = {
     { name: "Monsoon anomaly", metric: "−7%", sub: "seasonal precipitation", badge: "elevated", badgeText: "elevated" },
     { name: "Air quality", metric: "PM2.5 high", sub: "urban + crop-residue", badge: "elevated", badgeText: "elevated" },
   ],
-};
+} satisfies Record<RegionName, RegionMetric[]>;
+
+export const fixtureRegions = deepFreeze(regionData);
 
 export const fixtureUpdatedAt = "23 Aug 2026, 14:02 UTC";

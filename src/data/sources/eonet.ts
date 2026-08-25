@@ -13,8 +13,8 @@ type EonetResponse = {
 
 export type RawEonetEvent = { id: string; title: string; date: string; category: string };
 
-export async function fetchEonetRaw(limit = 60): Promise<RawEonetEvent[]> {
-  const data = await getJson<EonetResponse>(`${EONET}?status=open&limit=${limit}`, 15000);
+export async function fetchEonetRaw(limit = 60, signal?: AbortSignal): Promise<RawEonetEvent[]> {
+  const data = await getJson<EonetResponse>(`${EONET}?status=open&limit=${limit}`, { timeoutMs: 15000, signal });
   return (data.events ?? []).map((e) => ({
     id: e.id,
     title: e.title.replace(/\s*\(.*?\)\s*$/, "").trim(),

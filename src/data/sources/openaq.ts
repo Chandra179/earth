@@ -20,14 +20,13 @@ type LatestResponse = {
 
 export type RawPm25Reading = { valueUgM3: number; stations: number; asOf: string };
 
-export async function fetchOpenAqPm25Raw(bboxLonLatLonLat: string, maxStations = 6): Promise<RawPm25Reading> {
+export async function fetchOpenAqPm25Raw(bboxLonLatLonLat: string, maxStations = 6, signal?: AbortSignal): Promise<RawPm25Reading> {
   const key = openaqApiKey();
   if (!key) throw new Error("VITE_OPENAQ_API_KEY not set");
   const headers = { "X-API-Key": key };
   const locs = await getJson<LocationResponse>(
     `${OPENAQ}/locations?bbox=${bboxLonLatLonLat}&limit=100`,
-    15000,
-    headers,
+    { timeoutMs: 15000, headers, signal },
   );
   const wanted: { locationId: number; sensorId: number }[] = [];
   for (const loc of locs.results ?? []) {
@@ -39,7 +38,7 @@ export async function fetchOpenAqPm25Raw(bboxLonLatLonLat: string, maxStations =
   let asOf = "";
   for (const w of wanted) {
     try {
-      const latest = await getJson<LatestResponse>(`${OPENAQ}/locations/${w.locationId}/latest`, 12000, headers);
+      const latest = await getJson<LatestResponse>(`${OPENAQ}/locations/${w.locationId}/latest`, { timeoutMs: 12000, headers, signal });
       const hit = latest.results?.find((r) => r.sensorsId === w.sensorId);
       if (hit && Number.isFinite(hit.value)) {
         values.push(hit.value);

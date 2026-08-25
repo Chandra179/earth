@@ -21,12 +21,12 @@ function wfsUrl(cql: string, startIndex: number): string {
   return `${WFS}?${q.toString()}`;
 }
 
-export async function fetchProdesYearRows(year: number): Promise<RawProdesRow[]> {
+export async function fetchProdesYearRows(year: number, signal?: AbortSignal): Promise<RawProdesRow[]> {
   const out: RawProdesRow[] = [];
   let clsCol = -1;
   let areaCol = -1;
   for (let start = 0; start < 500000; start += PAGE) {
-    const text = await getText(wfsUrl(`class_name = 'd${year}'`, start), 120000);
+    const text = await getText(wfsUrl(`class_name = 'd${year}'`, start), { timeoutMs: 120000, signal });
     const lines = text.split(/\r?\n/).filter((l) => l.trim());
     if (!lines.length) break;
     const header = lines[0].split(",").map((h) => h.trim());

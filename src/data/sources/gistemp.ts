@@ -41,6 +41,6 @@ function parse(text: string): GistempRaw {
   return { monthly, annual };
 }
 
-export async function fetchGistempRaw(): Promise<GistempRaw> {
-  return parse(await getText(`${GISS}/GLB.Ts+dSST.csv`));
+export async function fetchGistempRaw(signal?: AbortSignal): Promise<GistempRaw> {
+  return parse(await getText(`${GISS}/GLB.Ts+dSST.csv`, { signal }));
 }

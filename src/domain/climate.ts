@@ -47,8 +47,6 @@ export type RegionMetric = {
 export const regionNames = ["Global", "Arctic", "Antarctic", "Amazon", "Mediterranean", "South Asia"] as const;
 export type RegionName = (typeof regionNames)[number];
 
-export type RegionOverrides = Partial<Record<RegionName, Record<string, RegionMetric>>>;
-
 export const COMPARE_FACTORS: Record<string, number> = {
   Arctic: 2.6,
   Antarctic: 1.4,
@@ -74,11 +72,22 @@ export type ClimateSnapshot = {
   pollutants: Pollutant[];
   regions: Record<RegionName, RegionMetric[]>;
   extraEvents: LiveEvent[];
-  eventFocus: Record<string, number>;
   liveSources: string[];
   updatedAt: string;
 };
 
+export type SourceError = { source: string; error: unknown };
+export type ErrorReporter = (e: SourceError) => void;
+
 export interface ClimateRepository {
-  getSnapshot(): Promise<ClimateSnapshot>;
+  /**
+   * Resolves with the fully merged snapshot. `onUpdate` receives progressive
+   * intermediate snapshots as each data source resolves; `onError` observes
+   * per-source failures (the snapshot itself still resolves).
+   */
+  getSnapshot(options?: {
+    signal?: AbortSignal;
+    onUpdate?: (snapshot: ClimateSnapshot) => void;
+    onError?: ErrorReporter;
+  }): Promise<ClimateSnapshot>;
 }

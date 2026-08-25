@@ -7,9 +7,13 @@ export function useClimateData(): { snapshot: ClimateSnapshot; isLive: boolean }
   useEffect(() => {
     let alive = true;
     climateRepository
-      .getSnapshot()
-      .then((s) => {
-        if (alive) setSnapshot(s);
+      .getSnapshot({
+        onUpdate: (s) => {
+          if (alive) setSnapshot(s);
+        },
+        onError: ({ source, error }) => {
+          console.warn(`[climate] source "${source}" failed:`, error);
+        },
       })
       .catch(() => {});
     return () => {

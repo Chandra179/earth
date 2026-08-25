@@ -17,8 +17,8 @@ function pickColumn(header: string[]): number {
   throw new Error("no usable sea level column");
 }
 
-export async function fetchOwidSeaLevelRaw(): Promise<OwidRaw> {
-  const rows = csvRows(await getText(OWID_URL));
+export async function fetchOwidSeaLevelRaw(signal?: AbortSignal): Promise<OwidRaw> {
+  const rows = csvRows(await getText(OWID_URL, { signal }));
   if (!rows.length) throw new Error("empty sea level response");
   const header = rows[0];
   const entityCol = headerIndex(header, "Entity");

@@ -6,10 +6,10 @@ const NSIDC = import.meta.env.DEV ? "/proxy/nsidc" : "https://noaadata.apps.nsid
 export type Hemisphere = "north" | "south";
 export type RawSeaIceDay = { year: number; month: number; day: number; extentMkm2: number };
 
-export async function fetchNsidcSeaIceRaw(hemisphere: Hemisphere): Promise<RawSeaIceDay[]> {
+export async function fetchNsidcSeaIceRaw(hemisphere: Hemisphere, signal?: AbortSignal): Promise<RawSeaIceDay[]> {
   const cap = hemisphere === "north" ? "N" : "S";
   const url = `${NSIDC}/NOAA/G02135/${hemisphere}/daily/data/${cap}_seaice_extent_daily_v4.0.csv`;
-  const rows = (await getText(url, 25000)).split(/\r?\n/);
+  const rows = (await getText(url, { timeoutMs: 25000, signal })).split(/\r?\n/);
   const out: RawSeaIceDay[] = [];
   for (const line of rows) {
     if (!line || /^[\sY]/.test(line)) continue;
