@@ -11,10 +11,12 @@ import {
   type TemporalMode,
 } from "../mock/climateData";
 
+const CHART_TITLE = "Temperature anomaly, CO₂ & sea level";
+
 const TEMPORAL_MODES: { mode: TemporalMode; label: string }[] = [
-  { mode: "weeks", label: "Weeks" },
-  { mode: "months", label: "Months" },
-  { mode: "years", label: "Years" },
+  { mode: "weeks", label: "Week" },
+  { mode: "months", label: "Month" },
+  { mode: "years", label: "Year" },
 ];
 
 export default function ClimateDashboard() {
@@ -110,21 +112,6 @@ export default function ClimateDashboard() {
             </span>
             <span className="lbl">warming rate</span>
           </div>
-
-          <div className="seg" role="tablist" aria-label="Temporal range" data-od-id="temporal-switcher">
-            {TEMPORAL_MODES.map((m) => (
-              <button
-                key={m.mode}
-                role="tab"
-                aria-selected={mode === m.mode}
-                aria-pressed={mode === m.mode}
-                data-mode={m.mode}
-                onClick={() => setMode(m.mode)}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
         </div>
       </header>
 
@@ -210,13 +197,13 @@ export default function ClimateDashboard() {
             <div className="chart-head">
               <div>
                 <h2 className="chart-title" id="chart-title">
-                  {copy.title}
+                  {CHART_TITLE}
                 </h2>
                 <p className="chart-subtitle" id="chart-subtitle">
-                  {copy.sub}
+                  {copy.sub} · lines scaled for shape comparison
                 </p>
               </div>
-              <div className="legend" id="chart-legend">
+              <div className="toolbar-tools">
                 <span className="axis-info-wrap">
                   <span className="axis-info" tabIndex={0}>
                     ⓘ
@@ -227,37 +214,27 @@ export default function ClimateDashboard() {
                     share a real unit. Hover the chart to see the actual value at any point.
                   </span>
                 </span>
-                <span
-                  className={"legend-item" + (hoveredMetric && hoveredMetric !== "temp" ? " dim" : "")}
-                  onMouseEnter={() => setHoveredMetric("temp")}
-                  onMouseLeave={() => setHoveredMetric(null)}
-                >
-                  <span className="legend-swatch dot" style={{ background: "var(--danger)" }} />
-                  Temp anomaly
-                </span>
-                <span
-                  className={"legend-item" + (hoveredMetric && hoveredMetric !== "co2" ? " dim" : "")}
-                  onMouseEnter={() => setHoveredMetric("co2")}
-                  onMouseLeave={() => setHoveredMetric(null)}
-                >
-                  <span className="legend-swatch dot" style={{ background: "var(--accent)" }} />
-                  CO₂
-                </span>
-                <span
-                  className={"legend-item" + (hoveredMetric && hoveredMetric !== "sl" ? " dim" : "")}
-                  onMouseEnter={() => setHoveredMetric("sl")}
-                  onMouseLeave={() => setHoveredMetric(null)}
-                >
-                  <span className="legend-swatch dot" style={{ background: "var(--success)" }} />
-                  Sea level
-                </span>
+                <label className="select-wrap select-sm" aria-label="Temporal range" data-od-id="temporal-switcher">
+                  <select id="range-select" value={mode} onChange={(e) => setMode(e.target.value as TemporalMode)}>
+                    {TEMPORAL_MODES.map((m) => (
+                      <option key={m.mode} value={m.mode}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
 
-            <ClimateChart mode={mode} dataset={dataset} hoveredMetric={hoveredMetric} onHoverMetric={setHoveredMetric} />
+              <ClimateChart
+                mode={mode}
+                dataset={dataset}
+                hoveredMetric={hoveredMetric}
+                onHoverMetric={setHoveredMetric}
+              />
 
             <div className="chart-note">
-              <span>Lines indexed for shape comparison &nbsp;|&nbsp; hover for actual values</span>
+              <span>Sources: NOAA GML · NASA GISTEMP · NOAA SLR · updated 23 Aug 2026</span>
               <span id="chart-mode-note">{copy.note}</span>
             </div>
           </div>

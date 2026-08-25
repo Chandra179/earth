@@ -13,9 +13,12 @@ export type ClimatePoint = {
 export type ClimateDataset = {
   points: ClimatePoint[];
   projection: ClimatePoint[];
+  scenarios?: Scenario[];
   threshold: boolean;
   daily?: boolean;
 };
+
+export type Scenario = { id: string; label: string; points: ClimatePoint[] };
 
 export type TemporalMode = "weeks" | "months" | "years";
 
@@ -46,6 +49,10 @@ function slAtYear(year: number) {
   let t = (year - YEAR0) / (YEAR_END - YEAR0);
   if (t < 0) t = 0;
   return 98.5 * Math.pow(t, 1.32);
+}
+function slProjection(year: number, factor: number) {
+  const base = slAtYear(YEAR_END);
+  return base + (slAtYear(year) - base) * factor;
 }
 function lerp(arr: number[], t: number) {
   if (t <= 0) return arr[0];
@@ -99,7 +106,30 @@ function buildYears(): ClimateDataset {
       projection: true,
     });
   }
-  return { points: pts, projection: proj, threshold: true };
+  const scenarios: Scenario[] = [
+    {
+      id: "ssp126",
+      label: "SSP1-2.6 · low",
+      points: proj.map((p) => ({
+        ...p,
+        temp: +(1.42 + (p.year - 2026) * 0.015).toFixed(2),
+        co2: +(428.2 + (p.year - 2026) * 0.5).toFixed(1),
+        sl: +slProjection(p.year, 0.55).toFixed(1),
+      })),
+    },
+    { id: "ssp245", label: "SSP2-4.5 · medium", points: proj },
+    {
+      id: "ssp585",
+      label: "SSP5-8.5 · high",
+      points: proj.map((p) => ({
+        ...p,
+        temp: +(1.42 + (p.year - 2026) * 0.09).toFixed(2),
+        co2: +(428.2 + (p.year - 2026) * 4.4).toFixed(1),
+        sl: +slProjection(p.year, 1.45).toFixed(1),
+      })),
+    },
+  ];
+  return { points: pts, projection: proj, scenarios, threshold: true };
 }
 
 function buildMonths(): ClimateDataset {

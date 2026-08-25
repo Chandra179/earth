@@ -34,11 +34,13 @@ const METRIC_COLOR: Record<MetricKey, string> = {
 export default function ClimateChart({
   mode,
   dataset,
+  projection,
   hoveredMetric = null,
   onHoverMetric,
 }: {
   mode: TemporalMode;
   dataset: ClimateDataset;
+  projection?: ClimatePoint[];
   hoveredMetric?: MetricKey | null;
   onHoverMetric?: (metric: MetricKey | null) => void;
 }) {
@@ -46,6 +48,7 @@ export default function ClimateChart({
   const [width, setWidth] = useState(760);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const gradUid = useId();
+  const projData = projection ?? dataset.projection;
 
   useEffect(() => {
     const el = stageRef.current;
@@ -60,7 +63,7 @@ export default function ClimateChart({
   }, []);
 
   const geo = useMemo(() => {
-    const pts: ChartPoint[] = dataset.points.concat(dataset.projection).map((p, i) => ({ ...p, idx: i }));
+    const pts: ChartPoint[] = dataset.points.concat(projData).map((p, i) => ({ ...p, idx: i }));
     const n = pts.length;
     const W = width || 760;
     const H = 340;
@@ -88,11 +91,11 @@ export default function ClimateChart({
     const Ysl = (p: ChartPoint) => yScale(slScale(p.sl));
 
     return { pts, n, W, H, padL, padR, padT, padB, pw, ph, tempScale, co2Scale, slScale, X, Ytemp, Yco2, Ysl, yScale };
-  }, [dataset, width]);
+  }, [dataset, projData, width]);
 
-  const { pts, n, W, H, padL, padR, padT, pw, ph, tempScale, X, Ytemp, Yco2, Ysl, yScale } = geo;
+  const { pts, n, W, H, padL, padR, padT, pw, ph, tempScale, co2Scale, slScale, X, Ytemp, Yco2, Ysl, yScale } = geo;
 
-  const gridLines = [0, 25, 50, 75, 100].map((v) => yScale(v));
+  const gridLines = [50].map((v) => yScale(v));
 
   const labelCount = n > 40 ? 6 : n > 20 ? 7 : 6;
   const xLabels: { x: number; label: string }[] = [];
@@ -102,7 +105,27 @@ export default function ClimateChart({
   }
 
   const realPts = pts.slice(0, dataset.points.length);
-  const projPts = dataset.projection.length ? pts.slice(dataset.points.length - 1) : [];
+  const projPts = projData.length ? pts.slice(dataset.points.length - 1) : [];
+
+  const BAND_FRAC: Record<MetricKey, number> = { temp: 0.09, co2: 0.055, sl: 0.2 };
+  function bandPath(getNorm: (p: ChartPoint) => number, frac: number): string | null {
+    if (projPts.length < 2) return null;
+    const up: string[] = [];
+    const dn: string[] = [];
+    projPts.forEach((p, i) => {
+      const off = 100 * frac * (i / (projPts.length - 1));
+      const yt = yScale(Math.min(100, getNorm(p) + off));
+      const yb = yScale(Math.max(0, getNorm(p) - off));
+      up.push((i ? "L" : "M") + X(p.idx).toFixed(1) + " " + yt.toFixed(1));
+      dn.unshift("L" + X(p.idx).toFixed(1) + " " + yb.toFixed(1));
+    });
+    return up.join(" ") + " " + dn.join(" ") + " Z";
+  }
+  const bandPaths: { key: MetricKey; d: string | null }[] = [
+    { key: "temp", d: bandPath((p) => tempScale(p.temp), BAND_FRAC.temp) },
+    { key: "co2", d: bandPath((p) => co2Scale(p.co2), BAND_FRAC.co2) },
+    { key: "sl", d: bandPath((p) => slScale(p.sl), BAND_FRAC.sl) },
+  ];
 
   const dailyPath = dataset.daily
     ? pathStr(realPts.map((p) => X(p.idx)), realPts.map((p) => yScale(tempScale(p.daily ?? p.temp))))
@@ -225,6 +248,28 @@ export default function ClimateChart({
 
         {hoverIndex >= 0 && (
           <line className="hover-line" x1={X(hoverIndex)} x2={X(hoverIndex)} y1={padT} y2={padT + ph} />
+        )}
+
+        {bandPaths.map(
+          (b) =>
+            b.d && (
+              <path
+                key={"band-" + b.key}
+                className={"band band-" + b.key}
+                d={b.d}
+                fill={METRIC_COLOR[b.key]}
+                style={{ opacity: 0.12 * opacityFor(b.key), transition: "opacity 150ms ease" }}
+              />
+            ),
+        )}
+
+        {projPts.length > 0 && (
+          <>
+            <line className="today-line" x1={X(lastReal)} x2={X(lastReal)} y1={padT} y2={padT + ph} />
+            <text className="today-lbl" x={X(lastReal)} y={padT - 7} textAnchor="middle">
+              today
+            </text>
+          </>
         )}
 
         {/* sea level */}
