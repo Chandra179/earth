@@ -115,13 +115,14 @@ export const fixtureKpis = deepFreeze({
   warmingCvsPreIndustrial: 1.42,
 } satisfies Kpis);
 
+// Fallback mirrors NOAA AGGI 2024 forcing shares; the super-pollutants
+// contributor overwrites these with live values when it resolves.
 export const fixturePollutants = deepFreeze([
-  { name: "Methane (CH₄)", share: 0.46, trend: "up", color: "var(--accent)", note: "1,930 ppb · livestock & leaks" },
-  { name: "Nitrous Oxide (N₂O)", share: 0.21, trend: "up", color: "var(--warn)", note: "~337 ppb · fertilizer soils" },
-  { name: "HFCs", share: 0.12, trend: "up", color: "var(--danger)", note: "fastest-growing F-gas class" },
-  { name: "SF₆", share: 0.07, trend: "up", color: "var(--fg-2)", note: "23,500× GWP · grid switchgear", termWord: "GWP", termDef: "Global warming potential — how much heat a gas traps vs. the same mass of CO₂ over 100 years." },
-  { name: "Black Carbon (soot)", share: 0.09, trend: "flat", color: "var(--fg)", note: "short-lived · Arctic forcing" },
-  { name: "Ground-level O₃", share: 0.05, trend: "flat", color: "var(--muted)", note: "secondary · precursor-driven" },
+  { name: "Methane (CH₄)", share: 0.47, trend: "up", color: "var(--accent)", note: "0.57 W/m² · livestock & leaks" },
+  { name: "Nitrous Oxide (N₂O)", share: 0.19, trend: "up", color: "var(--warn)", note: "0.23 W/m² · fertilizer soils" },
+  { name: "CFCs (legacy)", share: 0.25, trend: "down", color: "var(--muted)", note: "0.30 W/m² · banned, still fading" },
+  { name: "HCFCs", share: 0.05, trend: "flat", color: "var(--fg-2)", note: "0.06 W/m² · interim substitutes, peaking" },
+  { name: "HFCs + SF₆", share: 0.05, trend: "up", color: "var(--danger)", note: "0.06 W/m² · fastest-growing F-gases", termWord: "GWP", termDef: "Global warming potential — how much heat a gas traps vs. the same mass of CO₂ over 100 years." },
 ] satisfies Pollutant[]);
 
 const regionData = {
@@ -140,7 +141,6 @@ const regionData = {
   Antarctic: [
     { name: "Ice sheet loss", metric: "−150 Gt / yr", sub: "WAIS grounding-line retreat", badge: "critical", badgeText: "critical" },
     { name: "Sea ice extent", metric: "record low", sub: "2026 winter anomaly", badge: "critical", badgeText: "critical" },
-    { name: "Shelf calving", metric: "3 events", sub: "Larsen–Thwaites sector", badge: "elevated", badgeText: "elevated" },
   ],
   Amazon: [
     { name: "Deforestation", metric: "+12% YoY", sub: "primary forest loss", badge: "critical", badgeText: "critical" },

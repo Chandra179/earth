@@ -3,6 +3,7 @@ import type {
   ErrorReporter,
   Kpis,
   LiveEvent,
+  Pollutant,
   RegionMetric,
   RegionName,
   TemporalMode,
@@ -17,6 +18,8 @@ export type Contribution = {
   kpis?: Partial<Kpis>;
   datasets?: Partial<Record<TemporalMode, ClimateDataset>>;
   pollutantTrends?: Partial<Record<PollutantGas, Trend>>;
+  /** Full replacement of the pollutant breakdown rows. */
+  pollutants?: Pollutant[];
   regionRows?: { region: RegionName; row: RegionMetric }[];
   events?: LiveEvent[];
 };

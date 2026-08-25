@@ -45,6 +45,7 @@ type dependencies struct {
 	fc   *memStore // forecast series per site
 	clim *memStore // 1991–2020 climatology per site
 	rec  *memStore // trailing ~13-month window per site
+	ice  *memStore // parsed GRACE/GRACE-FO ice-sheet payload
 }
 
 // NewDependencies builds the domain service from its configuration.
@@ -64,6 +65,7 @@ func NewDependencies(cfg DependenciesConfig) (dependencies, error) {
 		fc:   mk(),
 		clim: mk(),
 		rec:  mk(),
+		ice:  mk(),
 	}, nil
 }
 
@@ -75,6 +77,9 @@ const (
 	climTTLOrRefreshWindow = 30 * 24 * time.Hour
 	recentTTL              = 6 * time.Hour
 	forecastTTL            = 3 * time.Hour
+	// iceMassTTL covers GRACE/GRACE-FO's monthly release cadence with
+	// margin; the disk copy survives restarts.
+	iceMassTTL = 7 * 24 * time.Hour
 )
 
 func (d dependencies) fetchClimatology(ctx context.Context, st Site) (*external.DailyResponse, error) {

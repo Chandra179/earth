@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 const proxy = {
   "/api": {
-    target: process.env.BACKEND_URL || "http://localhost:8090",
+    target: process.env.BACKEND_URL || "http://localhost:8076",
     changeOrigin: true,
   },
 

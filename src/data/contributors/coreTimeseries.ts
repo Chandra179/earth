@@ -26,7 +26,7 @@ export const coreTimeseries: Contributor = {
   ttlMs: 3 * 60 * 60 * 1000,
   async fetch({ signal }) {
     const ttl = this.ttlMs;
-    const [temps, co2Monthly, co2Annual, ch4Monthly, gmsl, ch4Gr, n2oGr, sf6Gr] = await Promise.all([
+    const [temps, co2Monthly, co2Annual, ch4Monthly, gmsl, ch4Gr, n2oGr] = await Promise.all([
       soft(() => cached("gistemp", ttl, () => fetchGistempRaw(signal))),
       soft(() => cached("noaa:co2-monthly", ttl, () => fetchNoaaGasMonthly("co2", signal))),
       soft(() => cached("noaa:co2-annual", ttl, () => fetchNoaaCo2Annual(signal))),
@@ -34,7 +34,6 @@ export const coreTimeseries: Contributor = {
       soft(() => cached("owid:sea-level", ttl, () => fetchOwidSeaLevelRaw(signal))),
       soft(() => cached("noaa:ch4-growth", ttl, () => fetchNoaaGasGrowth("ch4", signal))),
       soft(() => cached("noaa:n2o-growth", ttl, () => fetchNoaaGasGrowth("n2o", signal))),
-      soft(() => cached("noaa:sf6-growth", ttl, () => fetchNoaaGasGrowth("sf6", signal))),
     ]);
 
     const liveSources: string[] = [];
@@ -89,8 +88,6 @@ export const coreTimeseries: Contributor = {
     }
     const n2oT = n2oGr ? growthTrend(n2oGr) : undefined;
     if (n2oT) pollutantTrends.n2o = n2oT;
-    const sf6T = sf6Gr ? growthTrend(sf6Gr) : undefined;
-    if (sf6T) pollutantTrends.sf6 = sf6T;
 
     if (warmingCvsPreIndustrial != null) {
       regionRows.push({

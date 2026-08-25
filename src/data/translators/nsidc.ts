@@ -32,3 +32,37 @@ export function seaIceRegionRow(latest: RawSeaIceDay, data: RawSeaIceDay[]): Reg
     badgeText: st.text,
   };
 }
+
+/**
+ * Long-term September-extent trend in %/decade (OLS over yearly September
+ * means). Needs ≥20 years of coverage; null otherwise. This is the
+ * headline Arctic decline metric (≈ −12%/decade since 1979).
+ */
+export function septemberTrendPctPerDecade(data: RawSeaIceDay[]): number | null {
+  const byYear = new Map<number, number[]>();
+  for (const d of data) {
+    if (d.month !== 9 || d.extentMkm2 <= 0) continue;
+    const vals = byYear.get(d.year) ?? [];
+    vals.push(d.extentMkm2);
+    byYear.set(d.year, vals);
+  }
+  const series = [...byYear.entries()]
+    .filter(([, vals]) => vals.length >= 5)
+    .map(([year, vals]) => ({ year, extent: vals.reduce((a, b) => a + b, 0) / vals.length }))
+    .sort((a, b) => a.year - b.year);
+  if (series.length < 20) return null;
+
+  const n = series.length;
+  const sx = series.reduce((a, p) => a + p.year, 0);
+  const sy = series.reduce((a, p) => a + p.extent, 0);
+  const sxx = series.reduce((a, p) => a + p.year * p.year, 0);
+  const sxy = series.reduce((a, p) => a + p.year * p.extent, 0);
+  const den = n * sxx - sx * sx;
+  if (!den) return null;
+  const slopePerYear = (n * sxy - sx * sy) / den;
+
+  const baseline =
+    series.slice(0, 10).reduce((a, p) => a + p.extent, 0) / Math.min(10, series.length);
+  if (!baseline) return null;
+  return ((slopePerYear / baseline) * 100) * 10;
+}

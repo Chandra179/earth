@@ -141,14 +141,16 @@ export default function KpiGrid({ kpis, points, deltaLabel }: { kpis: Kpis; poin
         deltaId="super-delta"
         category="Super Pollutants"
         accentVar="var(--warn)"
-        deltaCls="up"
-        deltaText="+4.3%"
+        deltaCls={
+          kpis.fGasForcingDeltaPct == null ? "up" : kpis.fGasForcingDeltaPct < -0.05 ? "down" : "up"
+        }
+        deltaText={kpis.fGasForcingDeltaPct == null ? "+4.3%" : (kpis.fGasForcingDeltaPct >= 0 ? "+" : "") + kpis.fGasForcingDeltaPct.toFixed(1) + "%"}
         value={
           <>
             HFCs<span className="unit">+ SF₆</span>
           </>
         }
-        sub={<span>Fluorinated gases &amp; black carbon</span>}
+        sub={<span>Fluorinated gases · share of non-CO₂ forcing</span>}
         note="Per kilogram these gases trap thousands of times more heat than CO₂."
       />
     </section>

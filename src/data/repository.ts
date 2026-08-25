@@ -15,8 +15,9 @@ import { deforestation } from "./contributors/deforestation";
 import { fireRisk, airQuality } from "./contributors/regional";
 import { eonetEvents } from "./contributors/eonetEvents";
 import { backendData } from "./contributors/backendData";
+import { superPollutants } from "./contributors/superPollutants";
 
-const CONTRIBUTORS: Contributor[] = [coreTimeseries, seaIce, deforestation, fireRisk, airQuality, eonetEvents, backendData];
+const CONTRIBUTORS: Contributor[] = [coreTimeseries, seaIce, deforestation, fireRisk, airQuality, eonetEvents, backendData, superPollutants];
 
 export function baselineSnapshot(): ClimateSnapshot {
   return structuredClone({

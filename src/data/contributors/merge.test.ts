@@ -57,6 +57,15 @@ describe("applyContribution", () => {
     expect(out.pollutants[1].trend).toBe("flat");
   });
 
+  it("replaces the pollutant list wholesale and later trends still apply by name", () => {
+    const replaced = applyContribution(base(), {
+      pollutants: [{ name: "Methane (CH₄)", share: 0.47, trend: "up", color: "c", note: "" }],
+    });
+    expect(replaced.pollutants).toHaveLength(1);
+    const retrended = applyContribution(replaced, { pollutantTrends: { ch4: "down" } });
+    expect(retrended.pollutants[0].trend).toBe("down");
+  });
+
   it("replaces datasets wholesale per mode", () => {
     const months = { points: [], projection: [], threshold: false };
     const out = applyContribution(base(), { datasets: { months } });

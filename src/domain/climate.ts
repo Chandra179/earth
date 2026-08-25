@@ -24,7 +24,7 @@ export const SEA_LEVEL_BASELINE_YEAR = 2000;
 export const PREINDUSTRIAL_OFFSET_C = 0.29;
 export const PARIS_THRESHOLD_C = 1.5;
 
-export type Trend = "up" | "flat";
+export type Trend = "up" | "flat" | "down";
 
 export type Pollutant = {
   name: string;
@@ -62,6 +62,8 @@ export type Kpis = {
   latestMonthLabel: string;
   seaLevelMmVs2000: number;
   warmingCvsPreIndustrial: number;
+  /** Year-over-year % change in F-gas (HFCs+SF₆) radiative forcing; live via NOAA AGGI. */
+  fGasForcingDeltaPct?: number;
 };
 
 export type LiveEvent = { id: string; title: string; date: string; category: string };

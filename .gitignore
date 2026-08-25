@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Go dependencies (fetched via `go mod download` / `go mod vendor` locally)
+backend/vendor/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +25,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+backend/.cache/

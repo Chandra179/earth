@@ -1,7 +1,7 @@
 import type { Contribution, Contributor } from "./types";
 import { cached } from "../cache";
 import { fetchNsidcSeaIceRaw } from "../sources/nsidcSeaIce";
-import { seaIceRegionRow } from "../translators/nsidc";
+import { seaIceRegionRow, septemberTrendPctPerDecade } from "../translators/nsidc";
 
 async function soft<T>(run: () => Promise<T>): Promise<T | null> {
   try {
@@ -27,6 +27,20 @@ export const seaIce: Contributor = {
     if (arctic?.length) {
       regionRows.push({ region: "Arctic", row: seaIceRegionRow(arctic[arctic.length - 1], arctic) });
       liveSources.push("NSIDC sea ice");
+      const trend = septemberTrendPctPerDecade(arctic);
+      if (trend != null) {
+        regionRows.push({
+          region: "Global",
+          row: {
+            name: "Arctic ice extent",
+            metric:
+              (trend > 0 ? "+" : trend < 0 ? "−" : "") + Math.abs(trend).toFixed(1) + "% / decade",
+            sub: "September minimum trend · NSIDC",
+            badge: trend < -8 ? "critical" : trend < 0 ? "elevated" : "stable",
+            badgeText: trend < -8 ? "critical" : trend < 0 ? "declining" : "stable",
+          },
+        });
+      }
     }
     if (antarctic?.length) {
       regionRows.push({ region: "Antarctic", row: seaIceRegionRow(antarctic[antarctic.length - 1], antarctic) });

@@ -10,8 +10,8 @@ export default function PollutantBreakdown({ pollutants }: { pollutants: Polluta
       </div>
       <div className="breakdown" id="pollutant-list" style={{ marginTop: "var(--space-3)" }}>
         {pollutants.map((p) => {
-          const badgeCls = p.trend === "up" ? "up" : "flat";
-          const arrow = p.trend === "up" ? "↑ rising" : "→ stable";
+          const badgeCls = p.trend;
+          const arrow = p.trend === "up" ? "↑ rising" : p.trend === "down" ? "↓ falling" : "→ stable";
           return (
             <div className="bd-row" key={p.name}>
               <span className="bd-name">

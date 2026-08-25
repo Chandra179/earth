@@ -139,15 +139,18 @@ func olsSlopePerYear(ss []sample, since time.Time) float64 {
 func round1(v float64) float64 { return math.Round(v*10) / 10 }
 
 // IceMass derives Greenland/Antarctica mass-balance stats from the OWID
-// mirror of the NASA JPL GRACE/GRACE-FO mascon series.
+// mirror of the NASA JPL GRACE/GRACE-FO mascon series. Results are
+// memoized in-memory and persisted to disk (see iceMassTTL).
 func (d dependencies) IceMass(ctx context.Context) (IceMassPayload, error) {
-	body, err := d.up.GetIceMassCSV(ctx)
-	if err != nil {
-		return IceMassPayload{}, err
-	}
-	p, err := ParseIceMassCSV(strings.NewReader(string(body)))
-	if err == nil {
-		p.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-	}
-	return p, err
+	return getOrLoad(d.ice, "icemass", iceMassTTL, func() (IceMassPayload, error) {
+		body, err := d.up.GetIceMassCSV(ctx)
+		if err != nil {
+			return IceMassPayload{}, err
+		}
+		p, err := ParseIceMassCSV(strings.NewReader(string(body)))
+		if err == nil {
+			p.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		}
+		return p, err
+	})
 }

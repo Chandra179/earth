@@ -479,7 +479,7 @@ export default function ClimateChart({
       </div>
 
       {tooltip && (
-        <div key="tooltip" className="tooltip tt-in" style={tooltipStyle}>
+        <div key="tooltip" className="tooltip show tt-in" style={tooltipStyle}>
           <div className="tt-date">{tooltip.dateLabel}</div>
           {METRICS.map((m) => (
             <div className="tt-row" key={m.key}>

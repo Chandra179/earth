@@ -24,6 +24,7 @@ export function applyContribution(snap: ClimateSnapshot, c: Contribution): Clima
   if (c.kpis) next.kpis = { ...snap.kpis, ...c.kpis };
   if (c.datasets) next.datasets = { ...snap.datasets, ...c.datasets };
   if (c.pollutantTrends) next.pollutants = withTrends(snap.pollutants, c.pollutantTrends);
+  if (c.pollutants?.length) next.pollutants = c.pollutants;
 
   if (c.regionRows?.length) {
     const byRegion = new Map<RegionName, RegionMetric[]>(Object.entries(snap.regions) as [RegionName, RegionMetric[]][]);
