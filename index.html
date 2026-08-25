@@ -5,9 +5,54 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Global Climate Intelligence Dashboard</title>
+
+    <!-- discoverability -->
+    <meta
+      name="description"
+      content="Live global climate indicators — temperature anomaly, atmospheric CO₂ and sea level — with projections to 2030. Plain-language trends, sourced from NOAA and NASA."
+    />
+    <meta name="theme-color" content="#f4f7fb" />
+    <meta name="color-scheme" content="light" />
+
+    <!-- social sharing (what a reader sees when they share the link) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Global Climate Intelligence" />
+    <meta property="og:title" content="Global Climate Intelligence" />
+    <meta property="og:description" content="Live temperature, CO₂ and sea-level trends, with projections to 2030." />
+    <meta name="twitter:card" content="summary" />
+
+    <!-- typography: matches the design tokens (Inter / IBM Plex Mono) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      .noscript-msg {
+        max-width: 480px;
+        margin: 40vh auto 0;
+        padding: 20px;
+        border: 1px solid #d8e2ee;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #111827;
+        font-family: Inter, system-ui, sans-serif;
+        text-align: center;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+
+    <noscript>
+      <div class="noscript-msg">
+        This dashboard needs JavaScript to render live charts. The data behind it comes from NOAA GML, NASA
+        GISTEMP and NOAA sea-level records — please enable JavaScript or revisit with a modern browser.
+      </div>
+    </noscript>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

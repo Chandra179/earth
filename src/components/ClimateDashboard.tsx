@@ -1,15 +1,54 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ClimateChart, { type MetricKey } from "./ClimateChart";
-import {
-  datasets,
-  fmtDelta,
-  modeCopy,
-  pollutants,
-  regionNames,
-  regions,
-  type RegionName,
-  type TemporalMode,
-} from "../mock/climateData";
+import { COMPARE_FACTORS, regionNames, type RegionName, type TemporalMode } from "../domain/climate";
+import { useClimateData } from "../hooks/useClimateData";
+
+function fmtDelta(d: number) {
+  const cls = Math.abs(d) < 1e-9 ? "flat" : d > 0 ? "up" : "down";
+  const sign = d > 0 ? "+" : "";
+  return { cls, text: sign + d.toFixed(2) };
+}
+
+const modeCopy: Record<TemporalMode, { title: string; sub: string; note: string }> = {
+  years: {
+    title: "Temperature anomaly vs. atmospheric CO₂",
+    sub: "Annual means · 2000–2026 · projection to 2030",
+    note: "Reference line: +1.5°C Paris threshold",
+  },
+  months: {
+    title: "Seasonal ice melt & ocean heat cycle",
+    sub: "Monthly means · 60-month window",
+    note: "Month-over-month (MoM) deltas shown",
+  },
+  weeks: {
+    title: "Short-term anomalies & methane events",
+    sub: "Daily points with 7-day moving average · last 120 days",
+    note: "Week-over-week (WoW) deltas shown",
+  },
+};
+
+function Term({ word, children }: { word: string; children: React.ReactNode }) {
+  return (
+    <span className="term" tabIndex={0}>
+      {word}
+      <span className="tip" role="tooltip">
+        {children}
+      </span>
+    </span>
+  );
+}
+
+function NoteWithTerm({ note, word, def }: { note: string; word?: string; def?: string }) {
+  if (!word || !def || !note.includes(word)) return <>{note}</>;
+  const [before, after] = note.split(word);
+  return (
+    <>
+      {before}
+      <Term word={word}>{def}</Term>
+      {after}
+    </>
+  );
+}
 
 const CHART_TITLE = "Temperature anomaly, CO₂ & sea level";
 
@@ -24,19 +63,53 @@ export default function ClimateDashboard() {
   const [region, setRegion] = useState<RegionName>("Global");
   const [query, setQuery] = useState("");
   const [hoveredMetric, setHoveredMetric] = useState<MetricKey | null>(null);
+  const [compare, setCompare] = useState("");
+  const [playSignal, setPlaySignal] = useState(0);
+  const [focusReq, setFocusReq] = useState<{ i: number; n: number } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
+  const { snapshot } = useClimateData();
 
-  const dataset = datasets[mode];
+  useEffect(() => {
+    const h = new URLSearchParams(location.hash.replace(/^#/, ""));
+    const hm = h.get("mode");
+    if (hm && snapshot.datasets[hm as TemporalMode]) setMode(hm as TemporalMode);
+    const hr = h.get("region");
+    if (hr && (regionNames as readonly string[]).includes(hr)) setRegion(hr as RegionName);
+    const hc = h.get("compare");
+    if (hc && COMPARE_FACTORS[hc]) setCompare(hc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const parts = ["mode=" + mode, "region=" + encodeURIComponent(region)];
+    if (compare) parts.push("compare=" + encodeURIComponent(compare));
+    try {
+      history.replaceState(null, "", "#" + parts.join("&"));
+    } catch {
+      /* file:// may block */
+    }
+  }, [mode, region, compare]);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 2200);
+  }
+
+  const dataset = snapshot.datasets[mode];
   const copy = modeCopy[mode];
+  const kpis = snapshot.kpis;
 
   const deltaLabel = mode === "years" ? "YoY" : mode === "months" ? "MoM" : "WoW";
   const last = dataset.points[dataset.points.length - 1];
   const prev = dataset.points[dataset.points.length - 2];
-  const airDelta = fmtDelta(last.co2 - prev.co2);
-  const earthDelta = fmtDelta(last.temp - prev.temp);
-  const oceanDelta = fmtDelta(last.sl - prev.sl);
+  const airDelta = fmtDelta(last.co2Ppm - prev.co2Ppm);
+  const earthDelta = fmtDelta(last.tempAnomalyC - prev.tempAnomalyC);
+  const oceanDelta = fmtDelta(last.seaLevelMmVs2000 - prev.seaLevelMmVs2000);
 
   const regionList = useMemo(() => {
-    const list = (regions[region] || []).map((r) => ({
+    const list = (snapshot.regions[region] || []).map((r) => ({
       item: r,
       search: (r.name + " " + r.metric + " " + r.sub).toLowerCase(),
     }));
@@ -45,7 +118,7 @@ export default function ClimateDashboard() {
       return list.filter((r) => r.search.indexOf(q) !== -1);
     }
     return list;
-  }, [region, query]);
+  }, [snapshot.regions, region, query]);
 
   return (
     <>
@@ -108,7 +181,7 @@ export default function ClimateDashboard() {
           >
             <span className="dot" />
             <span className="val" id="warming-value">
-              +1.42°C
+              +{kpis.warmingCvsPreIndustrial.toFixed(2)}°C
             </span>
             <span className="lbl">warming rate</span>
           </div>
@@ -128,12 +201,17 @@ export default function ClimateDashboard() {
               </span>
             </div>
             <div className="kpi-value">
-              428.2<span className="unit">ppm CO₂</span>
+              {kpis.co2Ppm.toFixed(1)}
+              <span className="unit">ppm CO₂</span>
             </div>
             <div className="kpi-sub">
               <span>Methane CH₄</span>
-              <span style={{ fontFamily: "var(--font-mono)" }}>1,930 ppb</span>
+              <span style={{ fontFamily: "var(--font-mono)" }}>
+                {kpis.ch4Ppb.toLocaleString("en-US")}{" "}
+                <Term word="ppb">Parts per billion — like ppm but 1,000× smaller.</Term>
+              </span>
             </div>
+            <p className="kpi-matters">CO₂ traps heat for centuries — what we emit today sets the weather of 2100.</p>
           </div>
 
           <div className="card kpi" data-od-id="kpi-earth">
@@ -147,11 +225,17 @@ export default function ClimateDashboard() {
               </span>
             </div>
             <div className="kpi-value">
-              +1.92<span className="unit">°C</span>
+              +{kpis.tempAnomalyC.toFixed(2)}
+              <span className="unit">°C</span>
             </div>
             <div className="kpi-sub">
-              <span>Land surface anomaly · Jul peak</span>
+              <span>
+                {kpis.latestMonthLabel ? kpis.latestMonthLabel + " " : "Land surface "}
+                <Term word="anomaly">A difference measured against a reference average, not an actual temperature.</Term>
+                {!kpis.latestMonthLabel && " · Jul peak"}
+              </span>
             </div>
+            <p className="kpi-matters">Averages hide extremes — heatwaves now reach temperatures whole regions have never seen.</p>
           </div>
 
           <div className="card kpi" data-od-id="kpi-ocean">
@@ -165,12 +249,16 @@ export default function ClimateDashboard() {
               </span>
             </div>
             <div className="kpi-value">
-              +98.5<span className="unit">mm</span>
+              {(kpis.seaLevelMmVs2000 >= 0 ? "+" : "") + kpis.seaLevelMmVs2000.toFixed(1)}
+              <span className="unit">mm</span>
             </div>
             <div className="kpi-sub">
               <span>Sea level rise vs. 2000</span>
-              <span className="tag">SST elevated</span>
+              <span className="tag">
+                <Term word="SST">Sea surface temperature.</Term> elevated
+              </span>
             </div>
+            <p className="kpi-matters">Higher seas push storm surges further inland than at any point in recorded history.</p>
           </div>
 
           <div className="card kpi" data-od-id="kpi-super">
@@ -189,6 +277,7 @@ export default function ClimateDashboard() {
             <div className="kpi-sub">
               <span>Fluorinated gases &amp; black carbon</span>
             </div>
+            <p className="kpi-matters">Per kilogram these gases trap thousands of times more heat than CO₂.</p>
           </div>
         </section>
 
@@ -200,7 +289,7 @@ export default function ClimateDashboard() {
                   {CHART_TITLE}
                 </h2>
                 <p className="chart-subtitle" id="chart-subtitle">
-                  {copy.sub} · lines scaled for shape comparison
+                  {copy.sub}
                 </p>
               </div>
               <div className="toolbar-tools">
@@ -223,18 +312,100 @@ export default function ClimateDashboard() {
                     ))}
                   </select>
                 </label>
+                <label className="select-wrap select-sm" aria-label="Compare region temperature">
+                  <select
+                    id="compare-select"
+                    value={compare}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setCompare(v);
+                      showToast(v ? "Comparing with " + v : "Compare off");
+                    }}
+                  >
+                    <option value="">No compare</option>
+                    {Object.keys(COMPARE_FACTORS).map((r) => (
+                      <option key={r} value={r}>
+                        {"vs " + r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="tool-btn"
+                  id="play-btn"
+                  title="Animate the trend from start to today"
+                  onClick={() => setPlaySignal((s) => s + 1)}
+                >
+                  ▶ Play trend
+                </button>
               </div>
             </div>
 
               <ClimateChart
                 mode={mode}
                 dataset={dataset}
+                compare={compare}
+                playSignal={playSignal}
+                focusRequest={focusReq}
                 hoveredMetric={hoveredMetric}
                 onHoverMetric={setHoveredMetric}
               />
 
-            <div className="chart-note">
-              <span>Sources: NOAA GML · NASA GISTEMP · NOAA SLR · updated 23 Aug 2026</span>
+              {(() => {
+                const items = dataset.points
+                  .map((p, i) => ({ i, label: p.label, ev: p.event }))
+                  .filter((x) => x.ev);
+                const live = snapshot.extraEvents.map((ev, k) => ({
+                  key: "live-" + k,
+                  label: new Date(ev.date).toLocaleDateString("en", { month: "short", day: "numeric" }),
+                  ev: ev.title,
+                  focus: snapshot.eventFocus["live-" + k] ?? null,
+                }));
+                if (!items.length && !live.length)
+                  return (
+                    <div className="event-strip">
+                      <span className="axis-label">No marked events in this window</span>
+                    </div>
+                  );
+                return (
+                  <div className="event-strip" aria-label="Events in this range">
+                    {items.map((it) => (
+                      <button
+                        key={it.i}
+                        type="button"
+                        className="event-chip"
+                        onClick={() => setFocusReq({ i: it.i, n: (focusReq?.n ?? 0) + 1 })}
+                      >
+                        <b>{it.label}</b>
+                        {it.ev}
+                      </button>
+                    ))}
+                    {live.map((it) => (
+                      <button
+                        key={it.key}
+                        type="button"
+                        className="event-chip live-chip"
+                        title={it.label + " · NASA EONET"}
+                        onClick={() => {
+                          if (it.focus != null) setFocusReq({ i: it.focus, n: (focusReq?.n ?? 0) + 1 });
+                          showToast(it.ev);
+                        }}
+                      >
+                        <b>{it.label}</b>
+                        {it.ev}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              <div className="chart-note">
+              <span id="chart-sources">
+                {snapshot.liveSources.length
+                  ? "Live: " + snapshot.liveSources.join(" · ")
+                  : "Sources: NOAA GML · NASA GISTEMP · NOAA SLR · demo data"}
+              </span>
               <span id="chart-mode-note">{copy.note}</span>
             </div>
           </div>
@@ -246,7 +417,7 @@ export default function ClimateDashboard() {
                 <span className="meta">share of non-CO₂ forcing</span>
               </div>
               <div className="breakdown" id="pollutant-list" style={{ marginTop: "var(--space-3)" }}>
-                {pollutants.map((p) => {
+                {snapshot.pollutants.map((p) => {
                   const badgeCls = p.trend === "up" ? "up" : "flat";
                   const arrow = p.trend === "up" ? "↑ rising" : "→ stable";
                   return (
@@ -260,7 +431,8 @@ export default function ClimateDashboard() {
                         <span style={{ width: p.share * 100 + "%", background: p.color }} />
                       </span>
                       <span className="bd-note">
-                        <span className={"delta " + badgeCls}>{arrow}</span> {p.note}
+                        <span className={"delta " + badgeCls}>{arrow}</span>{" "}
+                        <NoteWithTerm note={p.note} word={p.termWord} def={p.termDef} />
                       </span>
                     </div>
                   );
@@ -306,12 +478,19 @@ export default function ClimateDashboard() {
         <div className="shell footbar-inner">
           <span className="live">
             <span className="pulse" />
-            LIVE · updated 23 Aug 2026, 14:02 UTC
+            {snapshot.liveSources.length ? "LIVE" : "DEMO"} · updated {snapshot.updatedAt}
           </span>
-          <span>Sources: NOAA · NASA GISS · ESA CCI · prototype estimates for evaluation</span>
+          <span>
+            {snapshot.liveSources.length
+              ? "Live sources: " + snapshot.liveSources.join(", ")
+              : "Sources: NOAA · NASA GISS · ESA CCI · prototype estimates for evaluation"}
+          </span>
           <span style={{ fontFamily: "var(--font-mono)" }}>Dataset: 27yr annual · 60mo · 120d</span>
         </div>
       </footer>
+      <div className={"toast" + (toast ? " show" : "")} role="status" aria-live="polite">
+        {toast}
+      </div>
     </>
   );
 }

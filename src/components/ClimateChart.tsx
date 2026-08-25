@@ -5,7 +5,18 @@ import { curveMonotoneX } from "@visx/curve";
 import { LinearGradient } from "@visx/gradient";
 import { localPoint } from "@visx/event";
 import { motion, AnimatePresence } from "framer-motion";
-import type { ClimateDataset, ClimatePoint, TemporalMode } from "../mock/climateData";
+import { COMPARE_FACTORS, type ClimateDataset, type ClimatePoint, type TemporalMode } from "../domain/climate";
+
+function lerpArr(arr: number[], t: number): number {
+  if (!arr.length) return 0;
+  if (t <= 0) return arr[0];
+  if (t >= arr.length - 1) return arr[arr.length - 1];
+  const i = Math.floor(t);
+  const f = t - i;
+  return arr[i] * (1 - f) + arr[i + 1] * f;
+}
+
+const REDUCED = typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export type MetricKey = "temp" | "co2" | "sl";
 
@@ -35,20 +46,30 @@ export default function ClimateChart({
   mode,
   dataset,
   projection,
+  compare = "",
+  playSignal = 0,
+  focusRequest = null,
   hoveredMetric = null,
   onHoverMetric,
 }: {
   mode: TemporalMode;
   dataset: ClimateDataset;
   projection?: ClimatePoint[];
+  compare?: string | null;
+  playSignal?: number;
+  focusRequest?: { i: number; n: number } | null;
   hoveredMetric?: MetricKey | null;
   onHoverMetric?: (metric: MetricKey | null) => void;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [width, setWidth] = useState(760);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const gradUid = useId();
   const projData = projection ?? dataset.projection;
+  const kbIndex = useRef(-1);
+  const [replay, setReplay] = useState(0);
+  const [revealed, setRevealed] = useState(true);
 
   useEffect(() => {
     const el = stageRef.current;
@@ -65,18 +86,30 @@ export default function ClimateChart({
   const geo = useMemo(() => {
     const pts: ChartPoint[] = dataset.points.concat(projData).map((p, i) => ({ ...p, idx: i }));
     const n = pts.length;
+
+    const baseTemps = dataset.points.map((p) => p.tempAnomalyC);
+    const cmpArr: number[] | null =
+      compare && COMPARE_FACTORS[compare]
+        ? pts.map(
+            (_, i) =>
+              lerpArr(baseTemps, (i / Math.max(n - 1, 1)) * Math.max(baseTemps.length - 1, 0)) *
+              COMPARE_FACTORS[compare],
+          )
+        : null;
+
     const W = width || 760;
     const H = 340;
     const padL = 28,
-      padR = 108,
+      padR = cmpArr ? 136 : 108,
       padT = 22,
       padB = 30;
     const pw = W - padL - padR,
       ph = H - padT - padB;
 
-    const temps = pts.map((p) => p.temp);
-    const co2s = pts.map((p) => p.co2);
-    const sls = pts.map((p) => p.sl);
+    const temps = pts.map((p) => p.tempAnomalyC);
+    if (cmpArr) temps.push(...cmpArr);
+    const co2s = pts.map((p) => p.co2Ppm);
+    const sls = pts.map((p) => p.seaLevelMmVs2000);
 
     const tempScale = scaleLinear<number>({ domain: [Math.min(...temps), Math.max(...temps)], range: [0, 100] });
     const co2Scale = scaleLinear<number>({ domain: [Math.min(...co2s), Math.max(...co2s)], range: [0, 100] });
@@ -86,14 +119,14 @@ export default function ClimateChart({
     const yScale = scaleLinear<number>({ domain: [0, 100], range: [padT + ph, padT] });
 
     const X = (i: number) => xScale(i);
-    const Ytemp = (p: ChartPoint) => yScale(tempScale(p.temp));
-    const Yco2 = (p: ChartPoint) => yScale(co2Scale(p.co2));
-    const Ysl = (p: ChartPoint) => yScale(slScale(p.sl));
+    const Ytemp = (p: ChartPoint) => yScale(tempScale(p.tempAnomalyC));
+    const Yco2 = (p: ChartPoint) => yScale(co2Scale(p.co2Ppm));
+    const Ysl = (p: ChartPoint) => yScale(slScale(p.seaLevelMmVs2000));
 
-    return { pts, n, W, H, padL, padR, padT, padB, pw, ph, tempScale, co2Scale, slScale, X, Ytemp, Yco2, Ysl, yScale };
-  }, [dataset, projData, width]);
+    return { pts, n, cmpArr, W, H, padL, padR, padT, padB, pw, ph, tempScale, co2Scale, slScale, X, Ytemp, Yco2, Ysl, yScale };
+  }, [dataset, projData, width, compare]);
 
-  const { pts, n, W, H, padL, padR, padT, pw, ph, tempScale, co2Scale, slScale, X, Ytemp, Yco2, Ysl, yScale } = geo;
+  const { pts, n, cmpArr, W, H, padL, padR, padT, pw, ph, tempScale, co2Scale, slScale, X, Ytemp, Yco2, Ysl, yScale } = geo;
 
   const gridLines = [50].map((v) => yScale(v));
 
@@ -122,13 +155,13 @@ export default function ClimateChart({
     return up.join(" ") + " " + dn.join(" ") + " Z";
   }
   const bandPaths: { key: MetricKey; d: string | null }[] = [
-    { key: "temp", d: bandPath((p) => tempScale(p.temp), BAND_FRAC.temp) },
-    { key: "co2", d: bandPath((p) => co2Scale(p.co2), BAND_FRAC.co2) },
-    { key: "sl", d: bandPath((p) => slScale(p.sl), BAND_FRAC.sl) },
+    { key: "temp", d: bandPath((p) => tempScale(p.tempAnomalyC), BAND_FRAC.temp) },
+    { key: "co2", d: bandPath((p) => co2Scale(p.co2Ppm), BAND_FRAC.co2) },
+    { key: "sl", d: bandPath((p) => slScale(p.seaLevelMmVs2000), BAND_FRAC.sl) },
   ];
 
   const dailyPath = dataset.daily
-    ? pathStr(realPts.map((p) => X(p.idx)), realPts.map((p) => yScale(tempScale(p.daily ?? p.temp))))
+    ? pathStr(realPts.map((p) => X(p.idx)), realPts.map((p) => yScale(tempScale(p.dailyTempAnomalyC ?? p.tempAnomalyC))))
     : null;
 
   const eventMarkers = pts
@@ -146,11 +179,22 @@ export default function ClimateChart({
   }
 
   const lastReal = dataset.points.length - 1;
-  const endLabels: { key: MetricKey; x: number; trueY: number; labelY: number; color: string; text: string }[] = [
-    { key: "temp" as const, x: X(lastReal), trueY: Ytemp(pts[lastReal]), labelY: 0, color: METRIC_COLOR.temp, text: "+" + pts[lastReal].temp.toFixed(2) + "°C" },
-    { key: "co2" as const, x: X(lastReal), trueY: Yco2(pts[lastReal]), labelY: 0, color: METRIC_COLOR.co2, text: pts[lastReal].co2.toFixed(1) + " ppm" },
-    { key: "sl" as const, x: X(lastReal), trueY: Ysl(pts[lastReal]), labelY: 0, color: METRIC_COLOR.sl, text: "+" + pts[lastReal].sl.toFixed(1) + " mm" },
-  ].sort((a, b) => a.trueY - b.trueY);
+  const endLabels: { key: string; x: number; trueY: number; labelY: number; color: string; text: string }[] = [
+    { key: "temp", x: X(lastReal), trueY: Ytemp(pts[lastReal]), labelY: 0, color: METRIC_COLOR.temp, text: "+" + pts[lastReal].tempAnomalyC.toFixed(2) + "°C" },
+    { key: "co2", x: X(lastReal), trueY: Yco2(pts[lastReal]), labelY: 0, color: METRIC_COLOR.co2, text: pts[lastReal].co2Ppm.toFixed(1) + " ppm" },
+    { key: "sl", x: X(lastReal), trueY: Ysl(pts[lastReal]), labelY: 0, color: METRIC_COLOR.sl, text: "+" + pts[lastReal].seaLevelMmVs2000.toFixed(1) + " mm" },
+  ];
+  if (cmpArr) {
+    endLabels.push({
+      key: "cmp",
+      x: X(lastReal),
+      trueY: yScale(tempScale(cmpArr[lastReal])),
+      labelY: 0,
+      color: "var(--warn)",
+      text: compare + " +" + cmpArr[lastReal].toFixed(2) + "°C",
+    });
+  }
+  endLabels.sort((a, b) => a.trueY - b.trueY);
   endLabels.forEach((l) => (l.labelY = l.trueY));
   const MIN_LABEL_GAP = 15;
   for (let i = 1; i < endLabels.length; i++) {
@@ -159,42 +203,79 @@ export default function ClimateChart({
     }
   }
 
+  function showAt(i: number, cursorY?: number) {
+    const idx = Math.max(0, Math.min(n - 1, i));
+    const p = pts[idx];
+    const since = pts[0];
+    const co2Delta = ((p.co2Ppm - since.co2Ppm) / since.co2Ppm) * 100;
+    const tempDelta = p.tempAnomalyC - since.tempAnomalyC;
+    const slDelta = p.seaLevelMmVs2000 - since.seaLevelMmVs2000;
+    const dateLabel = p.label + (mode === "years" ? " · annual" : "");
+
+    const rect = svgRef.current?.getBoundingClientRect();
+    const px = X(idx) * ((rect?.width ?? W) / W);
+    const py = Ytemp(p) * ((rect?.height ?? H) / H);
+
+    setTooltip({ x: px, y: py, point: p, dateLabel, tempDelta, co2Delta, slDelta });
+
+    if (onHoverMetric) {
+      const cy = cursorY ?? Ytemp(p);
+      const dists: [MetricKey, number][] = [
+        ["temp", Math.abs(cy - Ytemp(p))],
+        ["co2", Math.abs(cy - Yco2(p))],
+        ["sl", Math.abs(cy - Ysl(p))],
+      ];
+      dists.sort((a, b) => a[1] - b[1]);
+      onHoverMetric(dists[0][0]);
+    }
+    kbIndex.current = idx;
+  }
+
   function handleMouseMove(e: React.MouseEvent<SVGRectElement>) {
-    const svg = (e.target as SVGRectElement).ownerSVGElement;
+    const svg = svgRef.current;
     if (!svg) return;
     const point = localPoint(svg, e);
     const rect = svg.getBoundingClientRect();
     const x = point ? point.x * (W / rect.width) : 0;
     let i = Math.round(((x - padL) / pw) * (n - 1));
     i = Math.max(0, Math.min(n - 1, i));
-    const p = pts[i];
-    const since = pts[0];
-    const co2Delta = ((p.co2 - since.co2) / since.co2) * 100;
-    const tempDelta = p.temp - since.temp;
-    const slDelta = p.sl - since.sl;
-    const dateLabel = p.label + (mode === "years" ? " · annual" : "");
-
-    const px = X(i) * (rect.width / W);
-    const py = Ytemp(p) * (rect.height / H);
-
-    setTooltip({ x: px, y: py, point: p, dateLabel, tempDelta, co2Delta, slDelta });
-
-    if (onHoverMetric) {
-      const cursorY = point ? point.y * (H / rect.height) : Ytemp(p);
-      const dists: [MetricKey, number][] = [
-        ["temp", Math.abs(cursorY - Ytemp(p))],
-        ["co2", Math.abs(cursorY - Yco2(p))],
-        ["sl", Math.abs(cursorY - Ysl(p))],
-      ];
-      dists.sort((a, b) => a[1] - b[1]);
-      onHoverMetric(dists[0][0]);
-    }
+    const cursorY = point ? point.y * (H / rect.height) : undefined;
+    showAt(i, cursorY);
   }
 
-  function handleMouseLeave() {
+  function clearHover() {
     setTooltip(null);
+    kbIndex.current = -1;
     onHoverMetric?.(null);
   }
+
+  function handleKeyDown(e: React.KeyboardEvent<SVGSVGElement>) {
+    if (e.key === "Escape") {
+      clearHover();
+      return;
+    }
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : e.key === "Home" ? -1e9 : e.key === "End" ? 1e9 : 0;
+    if (!step) return;
+    e.preventDefault();
+    showAt((kbIndex.current < 0 ? 0 : kbIndex.current) + step);
+  }
+
+  const showAtRef = useRef(showAt);
+  showAtRef.current = showAt;
+
+  useEffect(() => {
+    if (!playSignal || REDUCED) return;
+    setRevealed(false);
+    setReplay((s) => s + 1);
+    const t = setTimeout(() => setRevealed(true), 650);
+    return () => clearTimeout(t);
+  }, [playSignal]);
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    showAtRef.current(focusRequest.i);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest?.n]);
 
   const tooltipStyle = useMemo(() => {
     if (!tooltip) return undefined;
@@ -210,7 +291,7 @@ export default function ClimateChart({
 
   const hoverIndex = tooltip ? pts.indexOf(tooltip.point) : -1;
 
-  function opacityFor(metric: MetricKey) {
+  function opacityFor(metric: MetricKey | string) {
     return hoveredMetric && hoveredMetric !== metric ? 0.32 : 1;
   }
   function strokeWidthFor(metric: MetricKey, base: number) {
@@ -223,7 +304,16 @@ export default function ClimateChart({
 
   return (
     <div className="chart-stage" id="chart-stage" ref={stageRef}>
-      <svg id="chart-svg" role="img" aria-label="Temperature, CO2 and sea level trends, indexed for comparison" viewBox={`0 0 ${W} ${H}`}>
+      <svg
+        id="chart-svg"
+        ref={svgRef}
+        role="img"
+        aria-label="Temperature, CO2 and sea level trends, indexed for comparison. Use arrow keys to step through data points."
+        viewBox={`0 0 ${W} ${H}`}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onBlur={clearHover}
+      >
         <LinearGradient id={tempGradId} from={METRIC_COLOR.temp} to={METRIC_COLOR.temp} fromOpacity={0.16} toOpacity={0} vertical />
         <LinearGradient id={co2GradId} from={METRIC_COLOR.co2} to={METRIC_COLOR.co2} fromOpacity={0.14} toOpacity={0} vertical />
         <LinearGradient id={slGradId} from={METRIC_COLOR.sl} to={METRIC_COLOR.sl} fromOpacity={0.16} toOpacity={0} vertical />
@@ -258,7 +348,7 @@ export default function ClimateChart({
                 className={"band band-" + b.key}
                 d={b.d}
                 fill={METRIC_COLOR[b.key]}
-                style={{ opacity: 0.12 * opacityFor(b.key), transition: "opacity 150ms ease" }}
+                style={{ opacity: (revealed ? 1 : 0) * 0.12 * opacityFor(b.key), transition: "opacity 150ms ease" }}
               />
             ),
         )}
@@ -285,7 +375,7 @@ export default function ClimateChart({
         <LinePath<ChartPoint> data={realPts} x={(p) => X(p.idx)} y={(p) => Ysl(p)} curve={curveMonotoneX}>
           {({ path }) => (
             <motion.path
-              key={mode + "-sl"}
+              key={mode + "-sl" + (replay ? "-r" + replay : "")}
               d={path(realPts) || ""}
               fill="none"
               stroke={METRIC_COLOR.sl}
@@ -300,7 +390,7 @@ export default function ClimateChart({
         {projPts.length > 0 && (
           <path
             className="series-sl projection"
-            style={{ opacity: opacityFor("sl") }}
+            style={{ opacity: revealed ? opacityFor("sl") : 0 }}
             d={pathStr(projPts.map((p) => X(p.idx)), projPts.map((p) => Ysl(p)))}
           />
         )}
@@ -318,7 +408,7 @@ export default function ClimateChart({
         <LinePath<ChartPoint> data={realPts} x={(p) => X(p.idx)} y={(p) => Yco2(p)} curve={curveMonotoneX}>
           {({ path }) => (
             <motion.path
-              key={mode + "-co2"}
+              key={mode + "-co2" + (replay ? "-r" + replay : "")}
               d={path(realPts) || ""}
               fill="none"
               stroke={METRIC_COLOR.co2}
@@ -333,7 +423,7 @@ export default function ClimateChart({
         {projPts.length > 0 && (
           <path
             className="series-co2 projection"
-            style={{ opacity: opacityFor("co2") }}
+            style={{ opacity: revealed ? opacityFor("co2") : 0 }}
             d={pathStr(projPts.map((p) => X(p.idx)), projPts.map((p) => Yco2(p)))}
           />
         )}
@@ -353,7 +443,7 @@ export default function ClimateChart({
         <LinePath<ChartPoint> data={realPts} x={(p) => X(p.idx)} y={(p) => Ytemp(p)} curve={curveMonotoneX}>
           {({ path }) => (
             <motion.path
-              key={mode + "-temp"}
+              key={mode + "-temp" + (replay ? "-r" + replay : "")}
               d={path(realPts) || ""}
               fill="none"
               stroke={METRIC_COLOR.temp}
@@ -365,10 +455,22 @@ export default function ClimateChart({
             />
           )}
         </LinePath>
+
+        {cmpArr && (
+          <path
+            className="series-compare"
+            style={{ opacity: revealed ? opacityFor("temp") : 0, transition: "opacity 150ms ease" }}
+            d={pathStr(
+              pts.map((_, i) => X(i)),
+              cmpArr.map((v) => yScale(tempScale(v))),
+            )}
+          />
+        )}
+
         {projPts.length > 0 && (
           <path
             className="series-temp projection"
-            style={{ opacity: opacityFor("temp") }}
+            style={{ opacity: revealed ? opacityFor("temp") : 0 }}
             d={pathStr(projPts.map((p) => X(p.idx)), projPts.map((p) => Ytemp(p)))}
           />
         )}
@@ -395,9 +497,32 @@ export default function ClimateChart({
           width={pw}
           height={ph}
           onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
+          onMouseLeave={clearHover}
         />
       </svg>
+      <div id="sr-table" className="sr-only">
+        <table>
+          <caption>Climate indicator values for the current range</caption>
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Temp anomaly °C</th>
+              <th>CO₂ ppm</th>
+              <th>Sea level mm</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pts.map((p, i) => (
+              <tr key={i}>
+                <td>{p.label}</td>
+                <td>+{p.tempAnomalyC.toFixed(2)}</td>
+                <td>{p.co2Ppm.toFixed(1)}</td>
+                <td>+{p.seaLevelMmVs2000.toFixed(1)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <AnimatePresence>
         {tooltip && (
           <motion.div
@@ -415,21 +540,21 @@ export default function ClimateChart({
                 <i style={{ background: "var(--danger)" }} />
                 Temp anomaly
               </span>
-              <span className="tt-val">+{tooltip.point.temp.toFixed(2)}°C</span>
+              <span className="tt-val">+{tooltip.point.tempAnomalyC.toFixed(2)}°C</span>
             </div>
             <div className="tt-row">
               <span className="tt-key">
                 <i style={{ background: "var(--accent)" }} />
                 CO₂
               </span>
-              <span className="tt-val">{tooltip.point.co2.toFixed(1)} ppm</span>
+              <span className="tt-val">{tooltip.point.co2Ppm.toFixed(1)} ppm</span>
             </div>
             <div className="tt-row">
               <span className="tt-key">
                 <i style={{ background: "var(--success)" }} />
                 Sea level
               </span>
-              <span className="tt-val">+{tooltip.point.sl.toFixed(1)} mm</span>
+              <span className="tt-val">+{tooltip.point.seaLevelMmVs2000.toFixed(1)} mm</span>
             </div>
             <div className="tt-row">
               <span className="tt-key">vs. 2000</span>
@@ -439,6 +564,15 @@ export default function ClimateChart({
                 {tooltip.co2Delta.toFixed(1)}% CO₂ · +{tooltip.slDelta.toFixed(1)} mm
               </span>
             </div>
+            {cmpArr && (
+              <div className="tt-row">
+                <span className="tt-key">
+                  <i style={{ background: "var(--warn)" }} />
+                  {compare}
+                </span>
+                <span className="tt-val">+{cmpArr[hoverIndex >= 0 ? hoverIndex : 0].toFixed(2)}°C</span>
+              </div>
+            )}
             {tooltip.point.event && <div className="tt-event show">◈ {tooltip.point.event}</div>}
           </motion.div>
         )}
